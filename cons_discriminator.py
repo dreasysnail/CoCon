@@ -14,13 +14,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = str(GPUID)
 import tensorflow as tf
 from tensorflow.contrib import learn
 from tensorflow.contrib import layers
-# from tensorflow.contrib import metrics
-# from tensorflow.contrib.learn import monitors
+
 from tensorflow.contrib import framework
 from tensorflow.contrib.learn.python.learn import learn_runner
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.contrib.tensorboard.plugins import projector
-# from tensorflow.contrib.learn.python.learn.metric_spec import MetricSpec
+
 import cPickle
 import numpy as np
 import os
@@ -35,8 +34,6 @@ from model_attn import *
 from utils import prepare_data_for_cnn, prepare_data_for_rnn, get_minibatches_idx, normalizing, restore_from_save, \
     prepare_for_bleu, cal_BLEU, sent2idx, tensors_key_in_file, binary_round
 
-# import tempfile
-# from tensorflow.examples.tutorials.mnist import input_data
 
 logging.set_verbosity(logging.INFO)
 # Basic model parameters as external flags.
@@ -58,19 +55,7 @@ class Options(object):
         self.restore = bool(args.restore)
         self.tanh = True  # activation fun for the top layer of cnn, otherwise relu
 
-        # self.bilstm = True
-        # self.vae = True
-        # self.lstm_proj = False
-
-        # self.kl_beta = 0.00
-        # self.kl_steps = 5000.0
-
-        # self.permutation = 0
-        # self.substitution = 's'  # Deletion(d), Insertion(a), Substitution(s) and Permutation(p)
-
-        # self.W_emb = None
-        # self.cnn_W = None
-        # self.cnn_b = None
+    
 
         self.maxlen = 49 #113#253
         self.n_words = None
@@ -83,8 +68,7 @@ class Options(object):
         self.max_epochs = args.max_epochs
         # self.n_gan = 900  # self.filter_size * 3
         self.n_hid = args.n_hid
-        # self.ef_dim = self.n_gan
-        #self.L = 100 # not used anymore
+
         self.reg = args.reg
         self.reg_corr = args.reg_corr
 
@@ -124,8 +108,7 @@ class Options(object):
         self.verbose = False
         self.print_freq = 100
         self.valid_freq = 1000
-        # self.emb_freq = 20000
-        # self.embedding_batch = 100
+
 
         # annealed ST estimation
         self.l_temp =  1
@@ -217,24 +200,16 @@ def pair_discriminator(src, tgt, opt, l_temp = 1, prefix = 'd_', is_prob_src = F
     W_norm_d = embedding_only(opt, prefix = prefix, is_reuse = is_reuse)   # V E
     H_src, H_src_1 = encoder(src, W_norm_d, opt, l_temp = l_temp, prefix = prefix , is_reuse = is_reuse, is_prob=is_prob_src)
     H_tgt, H_tgt_1 = encoder(tgt, W_norm_d, opt, l_temp = l_temp, prefix = prefix , is_reuse = True, is_prob=is_prob_tgt)
-    #logits = discriminator_2layer(H, opt, prefix= prefix, is_reuse = is_reuse)
-    # H : B F
-    # if opt.is_subtract_mean:
-    #     mean_H = tf.reduce_mean(H_src, axis=0) #(tf.reduce_mean(H_src, axis=0) + tf.reduce_mean(H_tgt, axis=0))/2
-    #     H_src = H_src - mean_H
-    #     H_tgt = H_tgt - mean_H
+
     if opt.model == 'D':
         logits = tf.reduce_sum(normalizing(H_src, 1)*normalizing(H_tgt, 1),1)
     elif opt.model == 'C':
         logits = classifier_2layer(tf.concat([H_src, H_tgt], 1), opt, prefix= prefix, is_reuse = is_reuse)
         logits = tf.squeeze(logits)
     else:  # N
-        #logits = tf.reduce_sum(H_src*H_tgt*opt.L,1)
-        #logits = tf.reduce_sum((H_src*H_tgt - 0.5)*opt.L,1)
+
         logits = tf.reduce_sum((H_src*H_tgt - 0.5),1)
 
-
-    #logits = tf.log((tf.reduce_sum(normalizing(H_src, 1)*normalizing(H_tgt, 1),1) + 1)*0.4999 + 0.0001)
     return logits, H_src, H_tgt, H_src_1, H_tgt_1   #tf.squeeze(tf.concat([H_src, H_tgt], 1))
 
 def encoder(x, W_norm_d, opt, l_temp = 1, num_outputs = None, prefix = 'd_', is_prob = False, is_reuse = None, is_padded = True, is_logit = False):
@@ -264,7 +239,7 @@ def encoder(x, W_norm_d, opt, l_temp = 1, num_outputs = None, prefix = 'd_', is_
     # Note here last layer is a linear one
     H_logit = H*l_temp
     H = tf.nn.sigmoid(H_logit)
-    # pdb.set_trace()
+
 
     if opt.binary_feature:
         
@@ -315,8 +290,7 @@ def main(opt):
     x = cPickle.load(open(data_path, "rb"))
     train, val, test = x[0], x[1], x[2]
     wordtoix, ixtoword = x[3], x[4]
-    # train = [list(s) for s in train]
-    # val = [list(s) for s in val]
+
 
     opt.n_words = len(ixtoword) 
     print datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
@@ -382,28 +356,28 @@ def main(opt):
                 sents = [train[t] for t in train_index]
                 indice = [rand_pair(opt.task, opt.data_name) for _ in range(opt.batch_size)]
                 if opt.task == 'L':
-                    #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
+
                     x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                     x_2 = [sents[i][idx[1]] for i, idx in enumerate(indice)]
                     y_batch = [(i1-i2)%2 == 0 for i1,i2 in indice]
                 elif opt.task == 'C':
-                    #pdb.set_trace()
+
                     batch_indice = np.concatenate([np.random.permutation(opt.batch_size/2) , range(opt.batch_size/2, opt.batch_size)]) 
                     y_batch = (range(opt.batch_size) == batch_indice)
-                    #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
+
                     rn = np.random.choice(7,size = opt.batch_size)
-                    #indice = [[rn[i],rn[i]+1] if y else np.random.choice(8,size=2, replace=True) for i,y in enumerate(y_batch)]
+ 
                     x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                     x_2 = [sents[batch_indice[i]][idx[1]] for i, idx in enumerate(indice)]
                 else: # G
                     batch_indice = np.concatenate([np.random.permutation(opt.batch_size/2) , range(opt.batch_size/2, opt.batch_size)]) 
                     y_batch = (range(opt.batch_size) == batch_indice)
-                    #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
+              
                     x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                     x_2 = [sents[batch_indice[i]][idx[1]] for i, idx in enumerate(indice)]
                 x_1_batch = prepare_data_for_cnn(x_1, opt)  # Batch L
                 x_2_batch = prepare_data_for_cnn(x_2, opt)  # Batch L
-                #pdb.set_trace() 
+
                 feed = {x_1_: x_1_batch, x_2_: x_2_batch, y_:np.float32(y_batch),l_temp_:opt.l_temp}
                 _, loss = sess.run([train_op, loss_], feed_dict=feed)
 
@@ -422,11 +396,6 @@ def main(opt):
                     print("y_mean: %f" % (np.mean(y_batch)))
                     print("corr:" + str(res['corr']))
 
-                    # print "Original     :" + " ".join([ixtoword[x] for x in sents[0] if x != 0])
-                    # # print "Permutated   :" + " ".join([ixtoword[x] for x in sents_permutated[0] if x != 0])
-                    # # if opt.model == 'rnn_rnn' or opt.model == 'cnn_rnn':
-                    # #     print "Reconstructed:" + " ".join([ixtoword[x] for x in res['rec_sents_feed_y'][0] if x != 0])
-                    # print "Reconstructed:" + " ".join([ixtoword[x] for x in res['rec_sents'][0] if x != 0])
                     sys.stdout.flush()
                     summary = sess.run(merged, feed_dict=feed)
                     train_writer.add_summary(summary, uidx)
@@ -438,23 +407,22 @@ def main(opt):
                         valid_index = np.random.choice(len(test), opt.batch_size)
                         sents = [test[t] for t in valid_index]
                         if opt.task == 'L':
-                            #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
+                           
                             x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                             x_2 = [sents[i][idx[1]] for i, idx in enumerate(indice)]
                             y_batch = [(i1-i2)%2 == 0 for i1,i2 in indice]
                         elif opt.task == 'C':
-                            #pdb.set_trace()
+     
                             batch_indice = np.concatenate([np.random.permutation(opt.batch_size/2) , range(opt.batch_size/2, opt.batch_size)]) 
                             y_batch = (range(opt.batch_size) == batch_indice)
-                            #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
+                     
                             rn = np.random.choice(7,size = opt.batch_size)
-                            #indice = [[rn[i],rn[i]+1] if y else np.random.choice(8,size=2, replace=True) for i,y in enumerate(y_batch)]
+                        
                             x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                             x_2 = [sents[batch_indice[i]][idx[1]] for i, idx in enumerate(indice)]
                         else: # G
                             batch_indice = np.concatenate([np.random.permutation(opt.batch_size/2) , range(opt.batch_size/2, opt.batch_size)]) 
                             y_batch = (range(opt.batch_size) == batch_indice)
-                            #indice = [np.random.choice(8,size=2, replace=False) for _ in range(opt.batch_size)]
                             x_1 = [sents[i][idx[0]] for i, idx in enumerate(indice)]
                             x_2 = [sents[batch_indice[i]][idx[1]] for i, idx in enumerate(indice)]
 
